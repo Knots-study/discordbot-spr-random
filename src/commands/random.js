@@ -2,7 +2,7 @@ import { getEnabledWeapons, getDisabledWeapons, getWeaponTypes } from '../databa
 import { selectRandomWeapons, getHumanMembers } from '../utils/weaponSelector.js';
 import { createWeaponEmbed } from '../utils/embedBuilder.js';
 import { sendError } from '../utils/messageHelper.js';
-import { REROLL_EMOJI } from '../utils/constants.js';
+import { REROLL_EMOJI, NUMBER_EMOJIS } from '../utils/constants.js';
 
 export default {
   name: 'random',
@@ -56,6 +56,13 @@ export default {
 
     const embed = createWeaponEmbed(assignments, disabledWeapons.length, weaponTypeFilter);
     const sentMessage = await message.reply({ embeds: [embed] });
+    
+    // リロール用のリアクション追加
     await sentMessage.react(REROLL_EMOJI);
+    
+    // 各武器に番号リアクション追加（除外用）
+    for (let i = 0; i < assignments.length && i < NUMBER_EMOJIS.length; i++) {
+      await sentMessage.react(NUMBER_EMOJIS[i]);
+    }
   }
 };

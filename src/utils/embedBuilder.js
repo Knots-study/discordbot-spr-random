@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
-import { EMBED_COLOR, REROLL_EMOJI } from './constants.js';
+import { EMBED_COLOR, REROLL_EMOJI, NUMBER_EMOJIS } from './constants.js';
 
 /**
  * 武器選出結果のEmbedを作成
@@ -14,12 +14,15 @@ export function createWeaponEmbed(assignments, disabledCount, weaponType = null,
   const count = assignments.length;
   
   const description = assignments
-    .map((a, i) => `**${i + 1}.** <@${a.member.id}> → **${a.weapon}**`)
+    .map((a, i) => {
+      const emoji = i < NUMBER_EMOJIS.length ? NUMBER_EMOJIS[i] : `**${i + 1}.**`;
+      return `${emoji} <@${a.member.id}> → **${a.weapon}**`;
+    })
     .join('\n');
   
   const footerText = isReroll
     ? `参加者: ${count}人 | 除外中: ${disabledCount}個`
-    : `参加者: ${count}人 | 除外中: ${disabledCount}個 | ${REROLL_EMOJI}スタンプで再抽選`;
+    : `参加者: ${count}人 | 除外中: ${disabledCount}個 | ${REROLL_EMOJI}で再抽選 | 番号で除外`;
   
   return new EmbedBuilder()
     .setColor(EMBED_COLOR)

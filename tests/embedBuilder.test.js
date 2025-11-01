@@ -50,9 +50,11 @@ describe('embedBuilder', () => {
 
       const embed = createWeaponEmbed(assignments, 0);
 
-      expect(embed.data.description).toContain('**1.**');
-      expect(embed.data.description).toContain('**2.**');
-      expect(embed.data.description).toContain('**3.**');
+      expect(embed.data.description).toContain('1️⃣');
+      expect(embed.data.description).toContain('2️⃣');
+      expect(embed.data.description).toContain('3️⃣');
+      expect(embed.data.description).toContain('<@u1>');
+      expect(embed.data.description).toContain('**A**');
     });
   });
 
