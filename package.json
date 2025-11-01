@@ -1,0 +1,35 @@
+{
+  "name": "discordbot-spr-random",
+  "version": "1.0.0",
+  "description": "Splatoonの武器をランダムに選出するDiscord Bot（共通除外武器機能付き・DB管理）",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "knex migrate:latest --knexfile knexfile.js",
+    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.js",
+    "seed": "knex seed:run --knexfile knexfile.js",
+    "db:reset": "npm run migrate:rollback && npm run migrate && npm run seed"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "splatoon",
+    "random",
+    "weapon"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "knex": "^3.1.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.6"
+  }
+}
