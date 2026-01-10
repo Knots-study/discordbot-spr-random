@@ -4,7 +4,7 @@
 [![Discord.js](https://img.shields.io/badge/Discord.js-14.14.1-blue.svg)](https://discord.js.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Discordのボイスチャンネル参加者にSplatoon 3の武器をランダムに割り当てるBot。**SOLID原則**、**DDD**、**デザインパターン**を完全準拠した、保守性・拡張性・テスタビリティに優れたクリーンアーキテクチャ実装です。
+Discordのボイスチャンネル参加者にSplatoon 3の武器をランダムに割り当てるBot。**SOLID原則**、**デザインパターン**を完全準拠した、保守性・拡張性・テスタビリティに優れたクリーンアーキテクチャ実装です。
 
 ## ✨ 機能
 
@@ -332,182 +332,6 @@ src/
 ```
 
 ---
-
-## 🎯 SOLID原則への完全準拠
-
-### 1️⃣ Single Responsibility Principle（単一責任の原則）
-
-**各クラスは1つの責任のみを持つ**
-
-| クラス | 責任 |
-|--------|------|
-| `WeaponRepository` | 武器データの永続化・取得 |
-| `WeaponAssignmentService` | 武器の割り当てロジック |
-| `ValidationService` | 入力値の検証 |
-| `ReactionService` | リアクションとタイマー管理 |
-| `MessageStateManager` | メッセージ状態の追跡 |
-
-```javascript
-// ❌ アンチパターン: 複数の責任
-class RandomCommand {
-  async execute() {
-    // バリデーション + DB操作 + ビジネスロジック + UI...
-  }
-}
-
-// ✅ SOLID準拠: 責任を分離
-class RandomCommand {
-  constructor(validationService, assignmentService, reactionService) {
-    this.validationService = validationService;
-    this.assignmentService = assignmentService;
-    this.reactionService = reactionService;
-  }
-}
-```
-
-### 2️⃣ Open/Closed Principle（開放閉鎖の原則）
-
-**拡張に開いて、修正に閉じている**
-
-新しい機能を追加する際、既存コードを変更せずに拡張可能：
-
-```javascript
-// ✅ Factoryパターンで拡張性を確保
-class RerollStrategyFactory {
-  static createStrategy(member) {
-    return member?.voice?.channel
-      ? new VoiceChannelRerollStrategy(voiceChannel)
-      : new SimpleRerollStrategy();
-  }
-  
-  // 新しい戦略を登録可能（既存コード変更不要）
-  static registerStrategy(type, strategyClass) { ... }
-}
-```
-
-### 3️⃣ Liskov Substitution Principle（リスコフの置換原則）
-
-**派生クラスは基底クラスと置き換え可能**
-
-すべての`ReactionHandler`サブクラスは基底クラスと同じインターフェースを持つ：
-
-```javascript
-// 基底クラス
-class ReactionHandler {
-  async handle(context) { ... }
-  async canHandle(context) { ... }
-  async process(context) { ... }
-}
-
-// 派生クラスは基底クラスと完全に置き換え可能
-class RerollHandler extends ReactionHandler { ... }
-class WeaponExclusionHandler extends ReactionHandler { ... }
-```
-
-### 4️⃣ Interface Segregation Principle（インターフェース分離の原則）
-
-**必要なメソッドのみを実装**
-
-肥大化したインターフェースを避け、必要最小限のメソッドのみ定義：
-
-```javascript
-// ReactionHandler: canHandle(), process() の2メソッドのみ
-// RerollStrategy: execute() の1メソッドのみ
-```
-
-### 5️⃣ Dependency Inversion Principle（依存性逆転の原則）
-
-**具象ではなく抽象に依存**
-
-```javascript
-// ✅ DIパターンで抽象に依存
-class RandomCommand {
-  constructor(weaponRepository, messageStateManager) {
-    this.validationService = new ValidationService(weaponRepository);
-    this.assignmentService = new WeaponAssignmentService(weaponRepository);
-    this.reactionService = new ReactionService(messageStateManager);
-  }
-}
-
-// ハンドラーチェーンもFactoryで構築
-const handlerChain = ReactionHandlerFactory.createHandlerChain(messageStateManager);
-```
-
----
-
-## 🎨 デザインパターン
-
-### Repository パターン
-**データアクセスを抽象化**
-
-```javascript
-class WeaponRepository {
-  async getEnabledWeapons(weaponType) { ... }
-  async disableWeapon(weaponName) { ... }
-  async enableWeapon(weaponName) { ... }
-}
-```
-
-**メリット**:
-- データベース実装の変更が容易
-- ビジネスロジックとデータアクセスの分離
-- テスト時のモック化が簡単
-
-### Factory パターン
-**オブジェクト生成を一元管理**
-
-```javascript
-// RerollStrategyFactory: 戦略の選択を抽象化
-const strategy = RerollStrategyFactory.createStrategy(member);
-
-// ReactionHandlerFactory: ハンドラーチェーンの構築を抽象化
-const handlerChain = ReactionHandlerFactory.createHandlerChain(messageStateManager);
-```
-
-### Strategy パターン
-**アルゴリズムの動的切り替え**
-
-```javascript
-// コンテキストに応じて再抽選方法を切り替え
-class VoiceChannelRerollStrategy extends RerollStrategy {
-  async execute(message) { /* VC参加者に再割り当て */ }
-}
-
-class SimpleRerollStrategy extends RerollStrategy {
-  async execute(message) { /* 同数の武器を再抽選 */ }
-}
-```
-
-### Chain of Responsibility パターン
-**責任の連鎖**
-
-```javascript
-RerollHandler → WeaponExclusionHandler
-
-// 各ハンドラーは自分が処理できるか判断
-async handle(context) {
-  if (await this.canHandle(context)) {
-    return await this.process(context);
-  }
-  return this.nextHandler?.handle(context);
-}
-```
-
-### Dependency Injection（DI）
-**疎結合な設計**
-
-```javascript
-// コンストラクタインジェクション
-class RandomCommand {
-  constructor(weaponRepository, messageStateManager) {
-    this.validationService = new ValidationService(weaponRepository);
-    this.assignmentService = new WeaponAssignmentService(weaponRepository);
-  }
-}
-```
-
----
-
 ## 🧪 テスト
 
 **100+ テストケースで品質保証**
@@ -622,19 +446,6 @@ DISCORD_TOKEN=your_bot_token_here
 
 ---
 
-## 📈 パフォーマンス
-
-- **起動時間**: < 2秒
-- **コマンド応答**: < 100ms
-- **メモリ使用量**: ~ 50MB
-- **データベースサイズ**: ~ 100KB（160武器）
-
----
-
-## 🤝 コントリビューション
-
-プルリクエスト歓迎！新機能の追加や改善提案は Issue でお知らせください。
-
 ### 開発ガイドライン
 
 1. **SOLID原則を遵守**
@@ -647,14 +458,6 @@ DISCORD_TOKEN=your_bot_token_here
 ## 📝 ライセンス
 
 MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照
-
----
-
-## 🙏 謝辞
-
-- [Discord.js](https://discord.js.org/) - Discord Bot Framework
-- [Knex.js](http://knexjs.org/) - SQL Query Builder
-- [Vitest](https://vitest.dev/) - Testing Framework
 
 ---
 
