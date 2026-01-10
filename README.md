@@ -54,10 +54,10 @@ Discordのボイスチャンネル参加者にSplatoon 3の武器をランダム
 sequenceDiagram
     participant User as 👤 ユーザー
     participant RandomCmd as RandomCommand
-    participant ValidationSvc as ValidationService<br/>(DI)
-    participant AssignmentSvc as WeaponAssignmentService<br/>(DI)
-    participant WeaponRepo as WeaponRepository<br/>(Repository)
-    participant ReactionSvc as ReactionService<br/>(DI)
+    participant ValidationSvc as ValidationService<br>(DI)
+    participant AssignmentSvc as WeaponAssignmentService<br>(DI)
+    participant WeaponRepo as WeaponRepository<br>(Repository)
+    participant ReactionSvc as ReactionService<br>(DI)
     participant DB as SQLite
 
     User->>RandomCmd: !random フデ
@@ -105,15 +105,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant User as 👤 ユーザー
-    participant Command as AddCommand<br/>RemoveCommand<br/>ClearCommand
-    participant WeaponRepo as WeaponRepository<br/>(Repository + DI)
+    participant Command as AddCommand<br>RemoveCommand<br>ClearCommand
+    participant WeaponRepo as WeaponRepository<br>(Repository + DI)
     participant DB as SQLite
 
     User->>Command: !remove わかばシューター
     
     Note over Command,WeaponRepo: Repository Pattern でデータ操作
     Command->>WeaponRepo: disableWeapon('わかばシューター')
-    WeaponRepo->>DB: UPDATE weapons SET enabled=0<br/>WHERE name='わかばシューター'
+    WeaponRepo->>DB: UPDATE weapons SET enabled=0<br>WHERE name='わかばシューター'
     DB-->>WeaponRepo: 1 row affected
     WeaponRepo-->>Command: {success: true}
     
@@ -142,21 +142,21 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant User as 👤 ユーザー
-    participant Command as ListCommand<br/>AllCommand
-    participant WeaponRepo as WeaponRepository<br/>(Repository)
+    participant Command as ListCommand<br>AllCommand
+    participant WeaponRepo as WeaponRepository<br>(Repository)
     participant DB as SQLite
 
     User->>Command: !list
     
     Command->>WeaponRepo: getDisabledWeapons()
-    WeaponRepo->>DB: SELECT * FROM weapons<br/>WHERE enabled=0<br/>ORDER BY weapon_type, name
+    WeaponRepo->>DB: SELECT * FROM weapons<br>WHERE enabled=0<br>ORDER BY weapon_type, name
     DB-->>WeaponRepo: 除外武器リスト
     WeaponRepo-->>Command: [{name, type}, ...]
     
     Command->>Command: groupByType()
     Command->>User: 📋 武器種別ごとに整形して表示
     
-    Note over Command: !allコマンドも同様<br/>getDisabledWeapons() → getAllWeapons()
+    Note over Command: !allコマンドも同様<br>getDisabledWeapons() → getAllWeapons()
 ```
 
 **デザインパターンの役割**:
@@ -175,11 +175,11 @@ sequenceDiagram
 sequenceDiagram
     participant User as 👤 ユーザー
     participant ReactionEvent as reactionAdd.js
-    participant HandlerFactory as ReactionHandlerFactory<br/>(Factory Pattern)
-    participant RerollHandler as RerollHandler<br/>(Chain of Responsibility)
-    participant ExclusionHandler as WeaponExclusionHandler<br/>(Chain of Responsibility)
-    participant StrategyFactory as RerollStrategyFactory<br/>(Factory Pattern)
-    participant Strategy as VoiceChannelRerollStrategy<br/>SimpleRerollStrategy<br/>(Strategy Pattern)
+    participant HandlerFactory as ReactionHandlerFactory<br>(Factory Pattern)
+    participant RerollHandler as RerollHandler<br>(Chain of Responsibility)
+    participant ExclusionHandler as WeaponExclusionHandler<br>(Chain of Responsibility)
+    participant StrategyFactory as RerollStrategyFactory<br>(Factory Pattern)
+    participant Strategy as VoiceChannelRerollStrategy<br>SimpleRerollStrategy<br>(Strategy Pattern)
     participant WeaponRepo as WeaponRepository
 
     User->>ReactionEvent: 🔄 クリック
@@ -193,7 +193,7 @@ sequenceDiagram
     RerollHandler->>RerollHandler: canHandle(context)?
     
     alt 🔄 再抽選の場合
-        RerollHandler->>RerollHandler: validateReroll()<br/>(20秒制限チェック)
+        RerollHandler->>RerollHandler: validateReroll()<br>(20秒制限チェック)
         
         Note over RerollHandler,Strategy: Strategy Pattern で戦略選択
         RerollHandler->>StrategyFactory: createStrategy(member)
@@ -252,13 +252,13 @@ sequenceDiagram
 graph TB
     Start[コマンド実行] --> VC{VC参加チェック}
     
-    VC -->|未参加| Error1[❌ ボイスチャンネルに<br/>参加してください]
+    VC -->|未参加| Error1[❌ ボイスチャンネルに<br>参加してください]
     VC -->|参加| Type{武器種別チェック}
     
     Type -->|不明な種別| Error2[❌ 無効な武器種別です]
     Type -->|OK| Weapons{武器数チェック}
     
-    Weapons -->|武器なし| Error3[❌ 有効な武器が<br/>不足しています]
+    Weapons -->|武器なし| Error3[❌ 有効な武器が<br>不足しています]
     Weapons -->|OK| Members{参加者数チェック}
     
     Members -->|人数 > 武器数| Error4[❌ 参加者が多すぎます]
