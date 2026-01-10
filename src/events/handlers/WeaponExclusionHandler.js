@@ -1,6 +1,6 @@
 import { ReactionHandler } from './ReactionHandler.js';
 import { NUMBER_EMOJIS, WEAPON_NAME_PATTERN } from '../../utils/constants.js';
-import { disableWeapon } from '../../database.js';
+import weaponRepository from '../../repositories/WeaponRepository.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 /**
@@ -17,8 +17,11 @@ export class WeaponExclusionHandler extends ReactionHandler {
     const weaponIndex = NUMBER_EMOJIS.indexOf(emojiName);
     const weaponName = this.#extractWeaponName(message.embeds[0], weaponIndex);
 
-    if (weaponName && await disableWeapon(weaponName)) {
-      await this.#sendFeedback(message.channel, user.id, weaponName);
+    if (weaponName) {
+      const result = await weaponRepository.disableWeapon(weaponName);
+      if (result.success) {
+        await this.#sendFeedback(message.channel, user.id, weaponName);
+      }
     }
 
     await this.#removeUserReaction(reaction, user);

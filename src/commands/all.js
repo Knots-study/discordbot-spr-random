@@ -1,12 +1,17 @@
 import { EmbedBuilder } from 'discord.js';
-import { getAllWeapons } from '../database.js';
+import weaponRepository from '../repositories/WeaponRepository.js';
 
-export default {
-  name: 'all',
-  description: '全武器リストを表示',
-  
+/**
+ * 全武器リスト表示コマンド
+ * Dependency Injection を使用してリポジトリに依存
+ */
+class AllCommand {
+  constructor(weaponRepository) {
+    this.weaponRepository = weaponRepository;
+  }
+
   async execute(message, args) {
-    const weapons = getAllWeapons();
+    const weapons = this.weaponRepository.getAllWeapons();
     const chunks = [];
     
     for (let i = 0; i < weapons.length; i += 30) {
@@ -23,4 +28,13 @@ export default {
       await message.reply({ embeds: [embed] });
     }
   }
+}
+
+// コマンド定義（DIでインスタンス化）
+const allCommand = new AllCommand(weaponRepository);
+
+export default {
+  name: 'all',
+  description: '全武器リストを表示',
+  execute: (message, args) => allCommand.execute(message, args)
 };

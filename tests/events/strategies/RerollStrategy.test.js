@@ -4,9 +4,8 @@ import {
   VoiceChannelRerollStrategy, 
   SimpleRerollStrategy 
 } from '../../../src/events/strategies/RerollStrategy.js';
-import * as database from '../../../src/database.js';
+import weaponRepository from '../../../src/repositories/WeaponRepository.js';
 
-vi.mock('../../../src/database.js');
 vi.mock('../../../src/utils/weaponSelector.js', () => ({
   getHumanMembers: vi.fn(() => new Map([
     ['user1', { id: 'user1', user: { bot: false } }]
@@ -14,7 +13,7 @@ vi.mock('../../../src/utils/weaponSelector.js', () => ({
   selectRandomWeapons: vi.fn((weapons, count) => weapons.slice(0, count))
 }));
 
-describe('RerollStrategy (Strategy パターン)', () => {
+describe('RerollStrategy', () => {
   describe('RerollStrategy (基底クラス)', () => {
     it('execute()を実装していない場合はエラー', async () => {
       const strategy = new RerollStrategy();
@@ -48,8 +47,8 @@ describe('RerollStrategy (Strategy パターン)', () => {
     beforeEach(() => {
       vi.clearAllMocks();
 
-      vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B', '武器C']);
-      vi.spyOn(database, 'getDisabledWeapons').mockResolvedValue([]);
+      vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B', '武器C']);
+      vi.spyOn(weaponRepository, 'getDisabledWeapons').mockResolvedValue([]);
 
       mockVoiceChannel = {
         members: new Map([
@@ -71,7 +70,7 @@ describe('RerollStrategy (Strategy パターン)', () => {
     it('ボイスチャンネルのメンバーに武器を再割り当て', async () => {
       await strategy.execute(mockMessage);
 
-      expect(database.getEnabledWeapons).toHaveBeenCalled();
+      expect(weaponRepository.getEnabledWeapons).toHaveBeenCalled();
       expect(mockMessage.edit).toHaveBeenCalled();
       
       const editCall = mockMessage.edit.mock.calls[0][0];
@@ -85,7 +84,7 @@ describe('RerollStrategy (Strategy パターン)', () => {
 
       await strategy.execute(mockMessage);
 
-      expect(database.getEnabledWeapons).toHaveBeenCalledWith('シューター');
+      expect(weaponRepository.getEnabledWeapons).toHaveBeenCalledWith('シューター');
     });
 
     it('メンバーが0人の場合は何もしない', async () => {
@@ -98,7 +97,7 @@ describe('RerollStrategy (Strategy パターン)', () => {
     });
 
     it('利用可能な武器がない場合は何もしない', async () => {
-      vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue([]);
+      vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue([]);
 
       await strategy.execute(mockMessage);
 
@@ -106,12 +105,12 @@ describe('RerollStrategy (Strategy パターン)', () => {
     });
 
     it('メンバーが武器数より多い場合は何もしない', async () => {
-      vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue(['武器A']); // 1個のみ
+      vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue(['武器A']);
       const { getHumanMembers } = await import('../../../src/utils/weaponSelector.js');
       getHumanMembers.mockReturnValue(new Map([
         ['user1', {}],
         ['user2', {}]
-      ])); // 2人
+      ]));
 
       await strategy.execute(mockMessage);
 
@@ -126,8 +125,8 @@ describe('RerollStrategy (Strategy パターン)', () => {
     beforeEach(() => {
       vi.clearAllMocks();
 
-      vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B', '武器C']);
-      vi.spyOn(database, 'getDisabledWeapons').mockResolvedValue([]);
+      vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B', '武器C']);
+      vi.spyOn(weaponRepository, 'getDisabledWeapons').mockResolvedValue([]);
 
       mockMessage = {
         embeds: [{
@@ -143,7 +142,7 @@ describe('RerollStrategy (Strategy パターン)', () => {
     it('embedの行数に応じて武器を再抽選', async () => {
       await strategy.execute(mockMessage);
 
-      expect(database.getEnabledWeapons).toHaveBeenCalled();
+      expect(weaponRepository.getEnabledWeapons).toHaveBeenCalled();
       expect(mockMessage.edit).toHaveBeenCalled();
       
       const editCall = mockMessage.edit.mock.calls[0][0];
@@ -169,7 +168,7 @@ describe('RerollStrategy (Strategy パターン)', () => {
     });
 
     it('利用可能な武器がない場合は何もしない', async () => {
-      vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue([]);
+      vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue([]);
 
       await strategy.execute(mockMessage);
 
@@ -177,8 +176,8 @@ describe('RerollStrategy (Strategy パターン)', () => {
     });
 
     it('必要な武器数より利用可能な武器が少ない場合は何もしない', async () => {
-      mockMessage.embeds[0].description = '武器A\n武器B\n武器C\n武器D\n武器E'; // 5行
-      vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B']); // 2個のみ
+      mockMessage.embeds[0].description = '武器A\n武器B\n武器C\n武器D\n武器E';
+      vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B']);
 
       await strategy.execute(mockMessage);
 
@@ -193,8 +192,8 @@ describe('RerollStrategy (Strategy パターン)', () => {
         edit: vi.fn().mockResolvedValue({})
       };
 
-      vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue(['武器X', '武器Y', '武器Z']);
-      vi.spyOn(database, 'getDisabledWeapons').mockResolvedValue([]);
+      vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue(['武器X', '武器Y', '武器Z']);
+      vi.spyOn(weaponRepository, 'getDisabledWeapons').mockResolvedValue([]);
 
       // 戦略1: シンプル再抽選
       const strategy1 = new SimpleRerollStrategy();

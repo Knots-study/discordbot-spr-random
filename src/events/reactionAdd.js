@@ -1,42 +1,15 @@
-import { RerollHandler } from './handlers/RerollHandler.js';
-import { WeaponExclusionHandler } from './handlers/WeaponExclusionHandler.js';
+import { ReactionHandlerFactory } from './factories/ReactionHandlerFactory.js';
+import messageStateManager from '../services/MessageStateManager.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 
-// メッセージ状態管理（DI用）
-const messageCreationTimes = new Map();
-const rerolledMessages = new Map();
-
-// メモリリーク対策: 古いエントリを定期的にクリーンアップ
-const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5分
-const MAX_ENTRY_AGE = 60 * 60 * 1000; // 1時間
+// ハンドラーチェーン構築（Factory パターン）
+const handlerChain = ReactionHandlerFactory.createHandlerChain(messageStateManager);
 
 /**
- * 古いエントリをクリーンアップ
- */
-function cleanupOldEntries() {
-  const cutoff = Date.now() - MAX_ENTRY_AGE;
-
-  for (const [messageId, timestamp] of messageCreationTimes.entries()) {
-    if (timestamp < cutoff) {
-      messageCreationTimes.delete(messageId);
-      rerolledMessages.delete(messageId);
-    }
-  }
-}
-
-// 定期クリーンアップ開始
-setInterval(cleanupOldEntries, CLEANUP_INTERVAL);
-
-// ハンドラーチェーン構築（Chain of Responsibility）
-const rerollHandler = new RerollHandler(messageCreationTimes, rerolledMessages);
-const weaponExclusionHandler = new WeaponExclusionHandler();
-rerollHandler.setNext(weaponExclusionHandler);
-
-/**
- * メッセージ作成時刻を記録
+ * メッセージ作成時刻を記録（後方互換性のため）
  */
 export function registerMessageCreationTime(messageId) {
-  messageCreationTimes.set(messageId, Date.now());
+  messageStateManager.registerMessageCreationTime(messageId);
 }
 
 /**
@@ -65,13 +38,10 @@ export default async function handleReaction(reaction, user, client) {
     emojiName: reaction.emoji.name
   };
 
-  await rerollHandler.handle(context);
+  await handlerChain.handle(context);
 }
 
 // テスト用エクスポート
 export const __test__ = {
-  clearMaps: () => {
-    messageCreationTimes.clear();
-    rerolledMessages.clear();
-  }
+  clearMaps: () => messageStateManager.clear()
 };

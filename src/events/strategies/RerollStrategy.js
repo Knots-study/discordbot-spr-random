@@ -1,4 +1,4 @@
-import { getEnabledWeapons, getDisabledWeapons } from '../../database.js';
+import weaponRepository from '../../repositories/WeaponRepository.js';
 import { selectRandomWeapons, getHumanMembers } from '../../utils/weaponSelector.js';
 import { createWeaponEmbed, createSimpleWeaponEmbed } from '../../utils/embedBuilder.js';
 
@@ -44,8 +44,8 @@ export class VoiceChannelRerollStrategy extends RerollStrategy {
     const weaponType = this.extractWeaponTypeFromTitle(originalEmbed?.title);
 
     const [availableWeapons, disabledWeapons] = await Promise.all([
-      getEnabledWeapons(weaponType),
-      getDisabledWeapons()
+      weaponRepository.getEnabledWeapons(weaponType),
+      weaponRepository.getDisabledWeapons()
     ]);
 
     if (availableWeapons.length === 0 || members.size > availableWeapons.length) {
@@ -75,8 +75,8 @@ export class SimpleRerollStrategy extends RerollStrategy {
     const count = originalEmbed.description.split('\n').length;
     
     const [availableWeapons, disabledWeapons] = await Promise.all([
-      getEnabledWeapons(),
-      getDisabledWeapons()
+      weaponRepository.getEnabledWeapons(),
+      weaponRepository.getDisabledWeapons()
     ]);
 
     if (availableWeapons.length === 0 || count > availableWeapons.length) {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReactionHandler } from '../../../src/events/handlers/ReactionHandler.js';
 
-// テスト用の具体的なハンドラークラス
+
 class TestHandler extends ReactionHandler {
   constructor(shouldHandle = true, processResult = true) {
     super();

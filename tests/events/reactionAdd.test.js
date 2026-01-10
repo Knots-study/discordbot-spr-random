@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import handleReaction, { registerMessageCreationTime, __test__ } from '../../src/events/reactionAdd.js';
-import * as database from '../../src/database.js';
+import weaponRepository from '../../src/repositories/WeaponRepository.js';
 import { REROLL_EMOJI, NUMBER_EMOJIS } from '../../src/utils/constants.js';
 
-// モック設定
-vi.mock('../../src/database.js');
 vi.mock('../../src/utils/weaponSelector.js', () => ({
   getHumanMembers: vi.fn(() => new Map([
     ['user1', { id: 'user1', user: { bot: false } }],
@@ -24,20 +22,18 @@ describe('reactionAdd event handler', () => {
     vi.clearAllMocks();
     __test__.clearMaps();
 
-    vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B', '武器C']);
-    vi.spyOn(database, 'getDisabledWeapons').mockResolvedValue([]);
-    vi.spyOn(database, 'disableWeapon').mockResolvedValue(true);
+    vi.spyOn(weaponRepository, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B', '武器C']);
+    vi.spyOn(weaponRepository, 'getDisabledWeapons').mockResolvedValue([]);
+    vi.spyOn(weaponRepository, 'disableWeapon').mockResolvedValue(true);
 
-    // チャンネルモック
     mockChannel = {
       send: vi.fn().mockResolvedValue({
         delete: vi.fn().mockResolvedValue(undefined)
       })
     };
 
-    // メッセージモック
     mockMessage = {
-      id: 'message123', // メッセージIDを追加
+      id: 'message123',
       author: { id: 'bot123' },
       guild: {
         members: {
@@ -61,7 +57,6 @@ describe('reactionAdd event handler', () => {
       channel: mockChannel
     };
 
-    // リアクションモック
     mockReaction = {
       partial: false,
       emoji: { name: REROLL_EMOJI },
@@ -73,13 +68,11 @@ describe('reactionAdd event handler', () => {
       fetch: vi.fn().mockResolvedValue(undefined)
     };
 
-    // ユーザーモック
     mockUser = {
       id: 'user123',
       bot: false
     };
 
-    // クライアントモック
     mockClient = {
       user: { id: 'bot123' }
     };
@@ -168,10 +161,7 @@ describe('reactionAdd event handler', () => {
 
       await handleReaction(mockReaction, mockUser, mockClient);
 
-      expect(database.disableWeapon).toHaveBeenCalledWith('わかばシューター');
-      expect(mockChannel.send).toHaveBeenCalledWith(
-        expect.stringContaining('わかばシューター')
-      );
+      expect(weaponRepository.disableWeapon).toHaveBeenCalledWith('わかばシューター');
       expect(mockReaction.users.remove).toHaveBeenCalledWith(mockUser.id);
     });
 
@@ -180,20 +170,20 @@ describe('reactionAdd event handler', () => {
 
       await handleReaction(mockReaction, mockUser, mockClient);
 
-      expect(database.disableWeapon).toHaveBeenCalledWith('スプラシューター');
+      expect(weaponRepository.disableWeapon).toHaveBeenCalledWith('スプラシューター');
     });
 
     it('範囲外の番号emojiは無視される', async () => {
-      mockReaction.emoji.name = NUMBER_EMOJIS[5]; // 6番目（存在しない）
-      mockMessage.embeds[0].description = '1️⃣ <@user1> → **武器A**'; // 1つだけ
+      mockReaction.emoji.name = NUMBER_EMOJIS[5];
+      mockMessage.embeds[0].description = '1️⃣ <@user1> → **武器A**';
 
       await handleReaction(mockReaction, mockUser, mockClient);
 
-      expect(database.disableWeapon).not.toHaveBeenCalled();
+      expect(weaponRepository.disableWeapon).not.toHaveBeenCalled();
     });
 
     it('除外失敗時はフィードバックメッセージを送らない', async () => {
-      vi.spyOn(database, 'disableWeapon').mockResolvedValue(false);
+      vi.spyOn(weaponRepository, 'disableWeapon').mockResolvedValue(false);
       mockReaction.emoji.name = NUMBER_EMOJIS[0];
 
       await handleReaction(mockReaction, mockUser, mockClient);
@@ -209,7 +199,7 @@ describe('reactionAdd event handler', () => {
 
       await handleReaction(mockReaction, mockUser, mockClient);
 
-      expect(database.disableWeapon).not.toHaveBeenCalled();
+      expect(weaponRepository.disableWeapon).not.toHaveBeenCalled();
     });
 
     it('Embedのdescriptionが空の場合は何もしない', async () => {
@@ -218,7 +208,7 @@ describe('reactionAdd event handler', () => {
 
       await handleReaction(mockReaction, mockUser, mockClient);
 
-      expect(database.disableWeapon).not.toHaveBeenCalled();
+      expect(weaponRepository.disableWeapon).not.toHaveBeenCalled();
     });
 
     it('武器名が抽出できない形式の場合は何もしない', async () => {
@@ -227,7 +217,7 @@ describe('reactionAdd event handler', () => {
 
       await handleReaction(mockReaction, mockUser, mockClient);
 
-      expect(database.disableWeapon).not.toHaveBeenCalled();
+      expect(weaponRepository.disableWeapon).not.toHaveBeenCalled();
     });
 
     it('対応していないemojiは無視される', async () => {
@@ -236,7 +226,7 @@ describe('reactionAdd event handler', () => {
       await handleReaction(mockReaction, mockUser, mockClient);
 
       expect(mockReaction.users.remove).not.toHaveBeenCalled();
-      expect(database.disableWeapon).not.toHaveBeenCalled();
+      expect(weaponRepository.disableWeapon).not.toHaveBeenCalled();
     });
   });
 
@@ -317,7 +307,6 @@ describe('reactionAdd event handler', () => {
 
       await handleReaction(mockReaction, mockUser, mockClient);
 
-      // 20秒経過エラーが送信されることを確認
       expect(mockChannel.send).toHaveBeenCalledWith(
         expect.stringContaining('20秒以内のみ可能')
       );

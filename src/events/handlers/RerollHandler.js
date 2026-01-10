@@ -1,9 +1,6 @@
 import { ReactionHandler } from './ReactionHandler.js';
 import { REROLL_EMOJI, REROLL_COOLDOWN } from '../../utils/constants.js';
-import { 
-  VoiceChannelRerollStrategy, 
-  SimpleRerollStrategy 
-} from '../strategies/RerollStrategy.js';
+import { RerollStrategyFactory } from '../factories/RerollStrategyFactory.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 /**
@@ -100,9 +97,7 @@ export class RerollHandler extends ReactionHandler {
    */
   async #executeReroll(message, user) {
     const member = await message.guild.members.fetch(user.id);
-    const strategy = member.voice.channel 
-      ? new VoiceChannelRerollStrategy(member.voice.channel)
-      : new SimpleRerollStrategy();
+    const strategy = RerollStrategyFactory.createStrategy(member);
 
     await strategy.execute(message);
   }
