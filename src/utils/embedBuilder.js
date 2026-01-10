@@ -7,11 +7,12 @@ import { EMBED_COLOR, REROLL_EMOJI, NUMBER_EMOJIS } from './constants.js';
  * @param {number} disabledCount 除外武器数
  * @param {string} weaponType 武器種別（オプション）
  * @param {boolean} isReroll 再抽選かどうか
+ * @param {boolean} isExpired 再抽選期限切れかどうか
  */
-export function createWeaponEmbed(assignments, disabledCount, weaponType = null, isReroll = false) {
+export function createWeaponEmbed(assignments, disabledCount, weaponType = null, isReroll = false, isExpired = false) {
   const typeText = weaponType ? `（${weaponType}）` : '';
-  const title = isReroll ? `🎲 ランダム武器選出${typeText}（再抽選）` : `🎲 ランダム武器選出${typeText}`;
-  const count = assignments.length;
+  const rerollText = isReroll ? '（再抽選）' : '';
+  const title = `🎲 ランダム武器選出${typeText}${rerollText}`;
   
   const description = assignments
     .map((a, i) => {
@@ -20,9 +21,9 @@ export function createWeaponEmbed(assignments, disabledCount, weaponType = null,
     })
     .join('\n');
   
-  const footerText = isReroll
-    ? `参加者: ${count}人 | 除外中: ${disabledCount}個`
-    : `参加者: ${count}人 | 除外中: ${disabledCount}個 | ${REROLL_EMOJI}で再抽選 | 番号で除外`;
+  const baseFooter = `参加者: ${assignments.length}人 | 除外中: ${disabledCount}個`;
+  const rerollInfo = isExpired ? '番号で除外' : isReroll ? '' : `${REROLL_EMOJI}で再抽選(20秒以内) | 番号で除外`;
+  const footerText = rerollInfo ? `${baseFooter} | ${rerollInfo}` : baseFooter;
   
   return new EmbedBuilder()
     .setColor(EMBED_COLOR)
@@ -35,16 +36,13 @@ export function createWeaponEmbed(assignments, disabledCount, weaponType = null,
  * シンプルな武器リストEmbedを作成（ボイスチャンネルなし用）
  */
 export function createSimpleWeaponEmbed(weapons, disabledCount) {
-  const description = weapons
-    .map((weapon, i) => `**${i + 1}.** ${weapon}`)
-    .join('\n');
+  const description = weapons.map((weapon, i) => `**${i + 1}.** ${weapon}`).join('\n');
   
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setTitle('🎲 ランダム武器選出（再抽選）')
     .setFooter({ text: `除外中: ${disabledCount}個` });
   
-  // 空文字はsetDescriptionでエラーになるので条件分岐
   if (description) {
     embed.setDescription(description);
   }

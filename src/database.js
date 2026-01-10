@@ -1,5 +1,6 @@
 import { initDatabase, getKnex } from './db/connection.js';
 import { ALL_WEAPONS, WEAPON_TYPES } from './data/weapons.js';
+import { DatabaseError } from './utils/errorHandler.js';
 
 let isInitialized = false;
 
@@ -32,16 +33,16 @@ export async function getEnabledWeapons(weaponType = null) {
   await ensureInitialized();
   const knex = getKnex();
   
-  let query = knex('weapons')
+  const query = knex('weapons')
     .select('name', 'weapon_type')
-    .where({ enabled: 1 });
+    .where({ enabled: 1 })
+    .orderBy('name');
   
   if (weaponType) {
-    query = query.where({ weapon_type: weaponType });
+    query.where({ weapon_type: weaponType });
   }
   
-  const results = await query.orderBy('name');
-  
+  const results = await query;
   return results.map(row => row.name);
 }
 
@@ -86,7 +87,7 @@ export async function disableWeapon(weaponName) {
   await ensureInitialized();
   const knex = getKnex();
   
-  if (!ALL_WEAPONS.map(w => w.name).includes(weaponName)) {
+  if (!ALL_WEAPONS.some(w => w.name === weaponName)) {
     return { success: false, message: 'その武器は存在しません' };
   }
 
@@ -102,7 +103,7 @@ export async function disableWeapon(weaponName) {
 }
 
 /**
- * 武器種別を一括で除外リストに追加
+ * 武器種別を一括で除外リストに追加（トランザクション使用）
  * @param {string} weaponType - 武器種別
  */
 export async function disableWeaponType(weaponType) {
@@ -113,15 +114,31 @@ export async function disableWeaponType(weaponType) {
     return { success: false, message: 'その武器種別は存在しません' };
   }
 
-  const changes = await knex('weapons')
-    .where({ weapon_type: weaponType, enabled: 1 })
-    .update({ enabled: 0 });
-  
-  if (changes === 0) {
-    return { success: false, message: `${weaponType}の武器は既に全て除外されています` };
+  try {
+    // トランザクション開始
+    const result = await knex.transaction(async (trx) => {
+      const changes = await trx('weapons')
+        .where({ weapon_type: weaponType, enabled: 1 })
+        .update({ enabled: 0 });
+      
+      if (changes === 0) {
+        throw new DatabaseError(`${weaponType}の武器は既に全て除外されています`);
+      }
+      
+      return { changes };
+    });
+    
+    return { 
+      success: true, 
+      message: `${weaponType}の武器 ${result.changes}種類を除外リストに追加しました`, 
+      count: result.changes 
+    };
+  } catch (error) {
+    if (error instanceof DatabaseError) {
+      return { success: false, message: error.message };
+    }
+    throw new DatabaseError('武器種別の一括除外に失敗しました', error);
   }
-  
-  return { success: true, message: `${weaponType}の武器 ${changes}種類を除外リストに追加しました`, count: changes };
 }
 
 /**
@@ -144,7 +161,7 @@ export async function enableWeapon(weaponName) {
 }
 
 /**
- * 武器種別を一括で除外リストから削除
+ * 武器種別を一括で除外リストから削除（トランザクション使用）
  * @param {string} weaponType - 武器種別
  */
 export async function enableWeaponType(weaponType) {
@@ -155,26 +172,84 @@ export async function enableWeaponType(weaponType) {
     return { success: false, message: 'その武器種別は存在しません' };
   }
 
-  const changes = await knex('weapons')
-    .where({ weapon_type: weaponType, enabled: 0 })
-    .update({ enabled: 1 });
-  
-  if (changes === 0) {
-    return { success: false, message: `${weaponType}の武器は除外リストにありません` };
+  try {
+    // トランザクション開始
+    const result = await knex.transaction(async (trx) => {
+      const changes = await trx('weapons')
+        .where({ weapon_type: weaponType, enabled: 0 })
+        .update({ enabled: 1 });
+      
+      if (changes === 0) {
+        throw new DatabaseError(`${weaponType}の武器は除外リストにありません`);
+      }
+      
+      return { changes };
+    });
+    
+    return { 
+      success: true, 
+      message: `${weaponType}の武器 ${result.changes}種類を除外リストから削除しました`, 
+      count: result.changes 
+    };
+  } catch (error) {
+    if (error instanceof DatabaseError) {
+      return { success: false, message: error.message };
+    }
+    throw new DatabaseError('武器種別の一括有効化に失敗しました', error);
   }
-  
-  return { success: true, message: `${weaponType}の武器 ${changes}種類を除外リストから削除しました`, count: changes };
 }
 
 /**
- * 除外リストをクリア
+ * 除外リストをクリア（トランザクション使用）
  */
 export async function clearDisabledWeapons() {
   await ensureInitialized();
   const knex = getKnex();
   
-  const changes = await knex('weapons')
-    .update({ enabled: 1 });
+  try {
+    const result = await knex.transaction(async (trx) => {
+      const changes = await trx('weapons')
+        .where({ enabled: 0 })
+        .update({ enabled: 1 });
+      
+      return { changes };
+    });
+    
+    return { success: true, count: result.changes };
+  } catch (error) {
+    throw new DatabaseError('除外リストのクリアに失敗しました', error);
+  }
+}
+
+/**
+ * 複数の武器を一括操作（トランザクション使用）
+ * @param {Array<string>} weaponNames - 武器名の配列
+ * @param {boolean} enable - true: 有効化, false: 無効化
+ */
+export async function bulkUpdateWeapons(weaponNames, enable = true) {
+  await ensureInitialized();
+  const knex = getKnex();
   
-  return { success: true, count: changes };
+  if (!weaponNames || weaponNames.length === 0) {
+    return { success: false, message: '武器が指定されていません' };
+  }
+
+  try {
+    const result = await knex.transaction(async (trx) => {
+      const changes = await trx('weapons')
+        .whereIn('name', weaponNames)
+        .update({ enabled: enable ? 1 : 0 });
+      
+      return { changes };
+    });
+    
+    const action = enable ? '有効化' : '除外';
+    return { 
+      success: true, 
+      message: `${result.changes}種類の武器を${action}しました`,
+      count: result.changes 
+    };
+  } catch (error) {
+    throw new DatabaseError('武器の一括操作に失敗しました', error);
+  }
 }

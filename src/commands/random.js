@@ -3,6 +3,39 @@ import { selectRandomWeapons, getHumanMembers } from '../utils/weaponSelector.js
 import { createWeaponEmbed } from '../utils/embedBuilder.js';
 import { sendError } from '../utils/messageHelper.js';
 import { REROLL_EMOJI, NUMBER_EMOJIS } from '../utils/constants.js';
+import { registerMessageCreationTime } from '../events/reactionAdd.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+
+/**
+ * リアクションを追加
+ */
+async function addReactions(message, assignmentCount) {
+  await message.react(REROLL_EMOJI);
+  
+  const reactionCount = Math.min(assignmentCount, NUMBER_EMOJIS.length);
+  for (let i = 0; i < reactionCount; i++) {
+    await message.react(NUMBER_EMOJIS[i]);
+  }
+}
+
+/**
+ * 20秒後に再抽選を期限切れにする
+ */
+function scheduleRerollExpiration(message, assignments, disabledCount, weaponTypeFilter) {
+  setTimeout(async () => {
+    try {
+      const rerollReaction = message.reactions.cache.get(REROLL_EMOJI);
+      if (rerollReaction) {
+        await rerollReaction.remove();
+      }
+
+      const updatedEmbed = createWeaponEmbed(assignments, disabledCount, weaponTypeFilter, false, true);
+      await message.edit({ embeds: [updatedEmbed] });
+    } catch (error) {
+      ErrorHandler.log(error, 'Reroll expiration');
+    }
+  }, 20000);
+}
 
 export default {
   name: 'random',
@@ -21,20 +54,16 @@ export default {
       return sendError(message, 'ボイスチャンネルに参加者がいません！');
     }
 
-    // 武器種別の指定を確認
-    const weaponType = args.join(' ');
-    let weaponTypeFilter = null;
+    const weaponTypeFilter = args.join(' ') || null;
     
-    if (weaponType) {
-      const weaponTypes = getWeaponTypes();
-      if (!weaponTypes.includes(weaponType)) {
-        return sendError(message, `武器種別 "${weaponType}" は存在しません！\n有効な種別: ${weaponTypes.join(', ')}`);
-      }
-      weaponTypeFilter = weaponType;
+    if (weaponTypeFilter && !getWeaponTypes().includes(weaponTypeFilter)) {
+      return sendError(message, `武器種別 "${weaponTypeFilter}" は存在しません！\n有効な種別: ${getWeaponTypes().join(', ')}`);
     }
 
-    const availableWeapons = await getEnabledWeapons(weaponTypeFilter);
-    const disabledWeapons = await getDisabledWeapons();
+    const [availableWeapons, disabledWeapons] = await Promise.all([
+      getEnabledWeapons(weaponTypeFilter),
+      getDisabledWeapons()
+    ]);
     
     if (availableWeapons.length === 0) {
       if (weaponTypeFilter) {
@@ -57,12 +86,8 @@ export default {
     const embed = createWeaponEmbed(assignments, disabledWeapons.length, weaponTypeFilter);
     const sentMessage = await message.reply({ embeds: [embed] });
     
-    // リロール用のリアクション追加
-    await sentMessage.react(REROLL_EMOJI);
-    
-    // 各武器に番号リアクション追加（除外用）
-    for (let i = 0; i < assignments.length && i < NUMBER_EMOJIS.length; i++) {
-      await sentMessage.react(NUMBER_EMOJIS[i]);
-    }
+    registerMessageCreationTime(sentMessage.id);
+    await addReactions(sentMessage, assignments.length);
+    scheduleRerollExpiration(sentMessage, assignments, disabledWeapons.length, weaponTypeFilter);
   }
 };

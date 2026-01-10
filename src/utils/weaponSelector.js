@@ -1,12 +1,12 @@
 /**
- * 武器をランダムに選出
+ * 武器をランダムに選出（Fisher-Yatesアルゴリズム）
  * @param {string[]} weapons 武器リスト
  * @param {number} count 選出数
  * @returns {string[]} 選出された武器リスト
  */
 export function selectRandomWeapons(weapons, count) {
-  const selected = [];
   const pool = [...weapons];
+  const selected = [];
   
   for (let i = 0; i < count; i++) {
     const randomIndex = Math.floor(Math.random() * pool.length);

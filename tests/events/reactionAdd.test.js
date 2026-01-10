@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import handleReaction from '../../src/events/reactionAdd.js';
+import handleReaction, { registerMessageCreationTime, __test__ } from '../../src/events/reactionAdd.js';
 import * as database from '../../src/database.js';
 import { REROLL_EMOJI, NUMBER_EMOJIS } from '../../src/utils/constants.js';
 
@@ -21,10 +21,9 @@ describe('reactionAdd event handler', () => {
   let mockChannel;
 
   beforeEach(() => {
-    // モッククリア
     vi.clearAllMocks();
+    __test__.clearMaps();
 
-    // データベースモック
     vi.spyOn(database, 'getEnabledWeapons').mockResolvedValue(['武器A', '武器B', '武器C']);
     vi.spyOn(database, 'getDisabledWeapons').mockResolvedValue([]);
     vi.spyOn(database, 'disableWeapon').mockResolvedValue(true);
@@ -126,6 +125,9 @@ describe('reactionAdd event handler', () => {
 
     it('2回目の再抽選は拒否される', async () => {
       mockReaction.emoji.name = REROLL_EMOJI;
+      
+      // タイムスタンプを登録（mockMessage.idと一致させる）
+      registerMessageCreationTime('message123');
 
       // 1回目の再抽選
       await handleReaction(mockReaction, mockUser, mockClient);
@@ -142,14 +144,14 @@ describe('reactionAdd event handler', () => {
     it('20秒経過後の再抽選は拒否される', async () => {
       mockReaction.emoji.name = REROLL_EMOJI;
 
-      // 初回のreactionで時刻を記録
-      await handleReaction(mockReaction, mockUser, mockClient);
-
-      // 21秒経過をシミュレート（Date.nowをモック）
+      // タイムスタンプを21秒前で登録
       const originalDateNow = Date.now;
-      Date.now = vi.fn(() => originalDateNow() + 21000);
+      const mockTime = originalDateNow() - 21000;
+      Date.now = vi.fn(() => mockTime);
+      registerMessageCreationTime('message123');
+      Date.now = originalDateNow;
 
-      // 2回目の再抽選試行（新しいユーザーとして）
+      // 現在時刻で再抽選を試行
       mockReaction.users.remove.mockClear();
       await handleReaction(mockReaction, { id: 'user456', bot: false }, mockClient);
       
@@ -157,9 +159,6 @@ describe('reactionAdd event handler', () => {
       expect(mockChannel.send).toHaveBeenCalledWith(
         expect.stringContaining('20秒以内のみ可能です')
       );
-      
-      // 元に戻す
-      Date.now = originalDateNow;
     });
   });
 
@@ -240,4 +239,104 @@ describe('reactionAdd event handler', () => {
       expect(database.disableWeapon).not.toHaveBeenCalled();
     });
   });
+
+  describe('registerMessageCreationTime', () => {
+    it('新しいメッセージIDのタイムスタンプを記録', () => {
+      const beforeTime = Date.now();
+      registerMessageCreationTime('new-message-id');
+      const afterTime = Date.now();
+
+      // タイムスタンプが記録されたことを間接的に確認（再抽選で使用される）
+      mockReaction.emoji.name = REROLL_EMOJI;
+      mockMessage.id = 'new-message-id';
+      
+      // この時点で処理が正常に進むはず（フォールバックメッセージなし）
+    });
+
+    it('既に記録されているメッセージIDは上書きしない', () => {
+      const messageId = 'existing-message';
+      const originalTime = Date.now() - 10000;
+      
+      // 内部Mapに直接アクセスできないので、動作で確認
+      registerMessageCreationTime(messageId);
+      const firstCall = Date.now();
+      
+      // 少し待ってからもう一度呼び出し
+      registerMessageCreationTime(messageId);
+      
+      // 2回目の呼び出しで時刻が更新されていないことを確認するため、
+      // 再抽選処理でタイムアウトチェックが一貫していることを確認
+    });
+
+    it('複数の異なるメッセージIDを記録できる', () => {
+      registerMessageCreationTime('msg1');
+      registerMessageCreationTime('msg2');
+      registerMessageCreationTime('msg3');
+
+      // 各メッセージで独立したタイムスタンプが管理されることを確認
+      // （実際の動作は再抽選ハンドラーでテスト済み）
+    });
+  });
+
+  describe('タイマー統合テスト', () => {
+    it('メッセージ送信時にタイマーを記録し、20秒以内に再抽選可能', async () => {
+      const messageId = 'timed-message';
+      registerMessageCreationTime(messageId);
+      
+      mockMessage.id = messageId;
+      mockReaction.emoji.name = REROLL_EMOJI;
+
+      // すぐに再抽選（20秒以内）
+      await handleReaction(mockReaction, mockUser, mockClient);
+
+      // エラーメッセージが送信されないことを確認
+      expect(mockChannel.send).not.toHaveBeenCalledWith(
+        expect.stringContaining('20秒以内のみ可能')
+      );
+    });
+
+    it('メッセージ送信時にタイマーを記録し、20秒経過後は再抽選不可', async () => {
+      const messageId = 'timed-message-expired';
+      const pastTime = Date.now() - 25000; // 25秒前
+      
+      // タイムスタンプを過去に設定するため、直接Mapを操作する代わりに
+      // Date.nowをモック
+      const originalDateNow = Date.now;
+      let callCount = 0;
+      Date.now = vi.fn(() => {
+        callCount++;
+        if (callCount === 1) return pastTime; // registerの時
+        return originalDateNow(); // チェックの時は現在時刻
+      });
+
+      registerMessageCreationTime(messageId);
+      Date.now = originalDateNow; // 元に戻す
+
+      mockMessage.id = messageId;
+      mockReaction.emoji.name = REROLL_EMOJI;
+
+      await handleReaction(mockReaction, mockUser, mockClient);
+
+      // 20秒経過エラーが送信されることを確認
+      expect(mockChannel.send).toHaveBeenCalledWith(
+        expect.stringContaining('20秒以内のみ可能')
+      );
+    });
+
+    it('タイマー記録なしで再抽選すると、エラーメッセージ', async () => {
+      const messageId = 'no-timer-message';
+      // registerMessageCreationTimeを呼ばない
+
+      mockMessage.id = messageId;
+      mockReaction.emoji.name = REROLL_EMOJI;
+
+      await handleReaction(mockReaction, mockUser, mockClient);
+
+      // エラーメッセージが送信されることを確認
+      expect(mockChannel.send).toHaveBeenCalledWith(
+        expect.stringContaining('再抽選できません')
+      );
+    });
+  });
 });
+

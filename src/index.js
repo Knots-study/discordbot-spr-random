@@ -5,8 +5,19 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import handleReaction from './events/reactionAdd.js';
 import { COMMAND_PREFIX } from './utils/constants.js';
+import { ErrorHandler } from './utils/errorHandler.js';
+import { validateEnv, printEnvStatus } from './utils/envValidator.js';
 
+// 環境変数を読み込み
 config();
+
+// 環境変数をバリデーション
+try {
+  validateEnv();
+  printEnvStatus();
+} catch (error) {
+  ErrorHandler.handleFatalError(error, 'Environment validation');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -36,8 +47,8 @@ async function loadCommands(client) {
   client.commands = new Collection();
 
   for (const file of commandFiles) {
-    const filePath = join(commandsPath, file);
-    const command = (await import(`file://${filePath}`)).default;
+    const filePath = `file://${join(commandsPath, file)}`;
+    const command = (await import(filePath)).default;
     
     if (command?.name) {
       client.commands.set(command.name, command);
@@ -49,7 +60,7 @@ async function loadCommands(client) {
  * イベントハンドラー登録
  */
 function registerEventHandlers(client) {
-  client.on('ready', () => {
+  client.on('clientReady', () => {
     console.log(`✅ Botがログインしました: ${client.user.tag}`);
     console.log(`📝 登録コマンド数: ${client.commands.size}`);
   });
@@ -66,8 +77,7 @@ function registerEventHandlers(client) {
     try {
       await command.execute(message, args);
     } catch (error) {
-      console.error(`コマンド実行エラー [${commandName}]:`, error);
-      await message.reply('❌ コマンドの実行中にエラーが発生しました。');
+      await ErrorHandler.handleCommandError(error, message, commandName);
     }
   });
 
@@ -75,7 +85,7 @@ function registerEventHandlers(client) {
     try {
       await handleReaction(reaction, user, client);
     } catch (error) {
-      console.error('リアクション処理エラー:', error);
+      ErrorHandler.handleReactionError(error, reaction, 'messageReactionAdd');
     }
   });
 
@@ -84,19 +94,30 @@ function registerEventHandlers(client) {
     client.destroy();
     process.exit(0);
   });
+
+  // 未処理の例外をキャッチ
+  process.on('uncaughtException', (error) => {
+    ErrorHandler.handleFatalError(error, 'Uncaught Exception');
+  });
+
+  // 未処理のPromise rejectをキャッチ
+  process.on('unhandledRejection', (reason, promise) => {
+    ErrorHandler.log(reason, 'Unhandled Rejection');
+  });
 }
 
 /**
  * Bot起動
  */
 async function startBot() {
-  const client = createClient();
-  await loadCommands(client);
-  registerEventHandlers(client);
-  await client.login(process.env.DISCORD_TOKEN);
+  try {
+    const client = createClient();
+    await loadCommands(client);
+    registerEventHandlers(client);
+    await client.login(process.env.DISCORD_TOKEN);
+  } catch (error) {
+    ErrorHandler.handleFatalError(error, 'Bot startup');
+  }
 }
 
-startBot().catch(error => {
-  console.error('Bot起動エラー:', error);
-  process.exit(1);
-});
+startBot();
