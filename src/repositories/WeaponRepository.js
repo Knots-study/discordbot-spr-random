@@ -13,23 +13,55 @@ export class WeaponRepository {
 
   /**
    * 武器データを初期化（初回のみ実行）
+   * 既存レコードのenabled状態は保持される
    */
   async ensureInitialized() {
     if (this.isInitialized) return;
     
     const knex = await initDatabase();
-    const weapons = ALL_WEAPONS.map(weapon => ({ 
-      name: weapon.name, 
-      weapon_type: weapon.type,
-      enabled: 1 
-    }));
     
-    await knex('weapons')
-      .insert(weapons)
-      .onConflict('name')
-      .ignore();
+    // テーブルが存在しない場合のみマイグレーション実行
+    const hasTable = await knex.schema.hasTable('weapons');
+    if (!hasTable) {
+      await this.#runMigrations(knex);
+    }
+    
+    await this.#syncWeapons(knex);
     
     this.isInitialized = true;
+  }
+
+  /**
+   * マイグレーションを実行（テーブル作成）
+   */
+  async #runMigrations(knex) {
+    await knex.migrate.latest({
+      directory: './src/db/migrations'
+    });
+  }
+
+  /**
+   * 新しい武器を同期（既存の状態は保持）
+   */
+  async #syncWeapons(knex) {
+    const existing = await knex('weapons').select('name', 'enabled');
+    const existingNames = new Set(existing.map(w => w.name));
+    
+    // 除外武器数をログ
+    const disabledCount = existing.filter(w => w.enabled === 0).length;
+    if (disabledCount > 0) {
+      console.log(`🔒 除外武器: ${disabledCount}個`);
+    }
+    
+    // 新しい武器のみ追加
+    const newWeapons = ALL_WEAPONS
+      .filter(w => !existingNames.has(w.name))
+      .map(w => ({ name: w.name, weapon_type: w.type, enabled: 1 }));
+    
+    if (newWeapons.length > 0) {
+      await knex('weapons').insert(newWeapons);
+      console.log(`✨ 新しい武器: ${newWeapons.length}個を追加`);
+    }
   }
 
   /**
