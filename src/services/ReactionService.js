@@ -1,5 +1,4 @@
-import { REROLL_EMOJI, NUMBER_EMOJIS } from '../utils/constants.js';
-import { createWeaponEmbed } from '../utils/embedBuilder.js';
+import { REROLL_EMOJI, NUMBER_EMOJIS, REROLL_COOLDOWN } from '../utils/constants.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 
 /**
@@ -28,30 +27,18 @@ export class ReactionService {
   /**
    * 再抽選タイマーをスケジュール（20秒後に期限切れ）
    * @param {Message} message - Discordメッセージ
-   * @param {Array} assignments - 武器割り当て配列
-   * @param {number} disabledCount - 除外武器数
-   * @param {string|null} weaponTypeFilter - 武器種別フィルタ
    */
-  scheduleRerollExpiration(message, assignments, disabledCount, weaponTypeFilter) {
+  scheduleRerollExpiration(message) {
     setTimeout(async () => {
       try {
         const rerollReaction = message.reactions.cache.get(REROLL_EMOJI);
         if (rerollReaction) {
           await rerollReaction.remove();
         }
-
-        const updatedEmbed = createWeaponEmbed(
-          assignments,
-          disabledCount,
-          weaponTypeFilter,
-          false,
-          true
-        );
-        await message.edit({ embeds: [updatedEmbed] });
       } catch (error) {
         ErrorHandler.log(error, 'Reroll expiration');
       }
-    }, 20000);
+    }, REROLL_COOLDOWN);
   }
 
   /**
@@ -69,6 +56,6 @@ export class ReactionService {
     await this.addReactions(message, assignments.length);
     
     // 再抽選期限のタイマーをセット
-    this.scheduleRerollExpiration(message, assignments, disabledCount, weaponType);
+    this.scheduleRerollExpiration(message);
   }
 }
